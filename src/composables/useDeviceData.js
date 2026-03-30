@@ -48,8 +48,21 @@ export function useDeviceData() {
 
     const q = searchQuery.value.trim()
     if (q) {
-      const terms = q.toLowerCase().split(/\s+/)
-      results = results.filter(d => terms.every(t => d.searchText.includes(t)))
+      // If the query is a single term that looks like a tocall, do
+      // wildcard-aware lookup in addition to substring matching.
+      const upper = q.toUpperCase()
+      if (q.split(/\s+/).length === 1 && TOCALL_RE.test(upper)) {
+        const wildcardMatches = tocallLookup(upper, results)
+        const wcSet = new Set(wildcardMatches)
+        // Also keep regular substring matches (vendor/model containing the term)
+        const terms = q.toLowerCase().split(/\s+/)
+        const substringMatches = results.filter(d => !wcSet.has(d) && terms.every(t => d.searchText.includes(t)))
+        // Wildcard matches first (sorted by specificity), then substring matches
+        results = [...wildcardMatches, ...substringMatches]
+      } else {
+        const terms = q.toLowerCase().split(/\s+/)
+        results = results.filter(d => terms.every(t => d.searchText.includes(t)))
+      }
     }
 
     const key = sortKey.value
@@ -70,6 +83,8 @@ export function useDeviceData() {
       ? classes[entry.class].shown
       : ''
 
+    const hasWildcard = /[?*n]/.test(identifier) && source === 'tocall'
+
     const searchText = [
       identifier,
       entry.vendor || '',
@@ -77,6 +92,24 @@ export function useDeviceData() {
       classShown,
       entry.os || '',
     ].join(' ').toLowerCase()
+
+    // For wildcard tocalls, pre-build a regex and a specificity score.
+    // Specificity = number of literal (non-wildcard) characters — longer
+    // literal prefix wins (e.g. APXYZ? beats APXY??).
+    let wildcardRegex = null
+    let specificity = 0
+    if (hasWildcard) {
+      let pattern = ''
+      for (const ch of identifier) {
+        if (ch === '?') { pattern += '[A-Z0-9]'; }
+        else if (ch === '*') { pattern += '[A-Z0-9]*'; }
+        else if (ch === 'n') { pattern += '[0-9]'; }
+        else { pattern += ch; specificity++; }
+      }
+      wildcardRegex = new RegExp('^' + pattern + '$')
+    } else if (source === 'tocall') {
+      specificity = identifier.length + 1 // exact match wins over any wildcard
+    }
 
     return {
       identifier,
@@ -89,7 +122,31 @@ export function useDeviceData() {
       contact: entry.contact || '',
       features: entry.features || [],
       searchText,
+      hasWildcard,
+      wildcardRegex,
+      specificity,
     }
+  }
+
+  // Check if a single search term looks like a tocall lookup
+  // (3-6 uppercase letters/digits).
+  const TOCALL_RE = /^[A-Z0-9]{3,6}$/
+
+  // For a tocall-like term, find devices that match via exact or wildcard,
+  // returning an array sorted by specificity (best match first).
+  function tocallLookup(term, devices) {
+    const matches = []
+    for (const d of devices) {
+      if (d.source !== 'tocall') continue
+      if (!d.hasWildcard && d.identifier === term) {
+        matches.push(d)
+      } else if (d.wildcardRegex && d.wildcardRegex.test(term)) {
+        matches.push(d)
+      }
+    }
+    // Sort by specificity descending — exact and longest-literal-prefix first
+    matches.sort((a, b) => b.specificity - a.specificity)
+    return matches
   }
 
   function toggleSort(key) {
