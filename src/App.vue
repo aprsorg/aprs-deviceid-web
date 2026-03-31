@@ -1,9 +1,10 @@
 <template>
   <header class="header">
     <div class="header-inner">
-      <h1>APRS Device ID Search</h1>
+      <h1>APRS Device ID / TOCALL Search</h1>
       <p>
-        Search the <a href="https://github.com/aprsorg/aprs-deviceid">APRS device identifier database</a>
+        Search the current
+        <a href="https://github.com/aprsorg/aprs-deviceid">APRS device identifier database</a>
         by tocall, vendor, or model name.
       </p>
     </div>
