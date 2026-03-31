@@ -25,9 +25,6 @@
           <td>{{ d.model }}</td>
           <td>{{ d.classShown }}</td>
           <td>{{ d.os }}</td>
-          <td>
-            <span v-for="f in d.features" :key="f" class="feature-tag">{{ f }}</span>
-          </td>
         </tr>
       </tbody>
     </table>
@@ -42,7 +39,6 @@ const columns = [
   { key: 'model', label: 'Model' },
   { key: 'classShown', label: 'Class' },
   { key: 'os', label: 'OS' },
-  { key: 'features', label: 'Features' },
 ]
 
 defineProps({
